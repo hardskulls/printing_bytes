@@ -1,8 +1,8 @@
 use std::error::Error;
 
-pub type DefaultError = color_eyre::Report;
+pub type Err = color_eyre::Report;
 
-pub type DefaultRes<T, E = DefaultError> = color_eyre::Result<T, E>;
+pub type Res<T, E = Err> = color_eyre::Result<T, E>;
 
 /// Analogous to regular `map` but works on any type.
 pub trait MapType<M> {
@@ -95,19 +95,19 @@ impl<T, E> SwapRes<E, T> for Result<T, E> {
 /// an `Ok` or an `Err`.
 pub trait AddToRes<T> {
     /// Turns `Option<T>` into `Result<O, T>`.
-    fn with_ok<O>(self, ok: O) -> Result<O, T>;
+    fn add_ok<O>(self, ok: O) -> Result<O, T>;
     /// Turns `Option<T>` into `Result<T, E>`.
-    fn with_err<E>(self, err: E) -> Result<T, E>;
+    fn add_err<E>(self, err: E) -> Result<T, E>;
 }
 
 impl<T> AddToRes<T> for Option<T> {
-    fn with_ok<O>(self, ok: O) -> Result<O, T> {
+    fn add_ok<O>(self, ok: O) -> Result<O, T> {
         match self {
             None => Ok(ok),
             Some(e) => Err(e),
         }
     }
-    fn with_err<E>(self, err: E) -> Result<T, E> {
+    fn add_err<E>(self, err: E) -> Result<T, E> {
         self.ok_or(err)
     }
 }

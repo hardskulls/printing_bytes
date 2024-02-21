@@ -1,4 +1,4 @@
-use crate::maptyping::{DefaultRes, ErrIf, Mutate, WrapInRes};
+use crate::maptyping::{ErrIf, Mutate, Res, WrapInRes};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 use std::num::ParseIntError;
@@ -30,7 +30,7 @@ pub enum ConversionMode {
 #[error("Empty source")]
 pub struct EmptySourceError;
 
-pub fn get_sample(path: &str) -> DefaultRes<String> {
+pub fn get_sample(path: &str) -> Res<String> {
     std::fs::read_to_string(path)?
         .err_if(|s| s.is_empty(), EmptySourceError)?
         .in_ok()
@@ -40,10 +40,10 @@ fn byte_from_str(s: &str, mode: ConversionMode) -> Result<Byte, ParseIntError> {
     Byte::from_str_radix(s, mode as u32)
 }
 
-pub fn parse_bytes(src: &str, mode: ConversionMode) -> DefaultRes<ByteList> {
+pub fn parse_bytes(src: &str, mode: ConversionMode) -> Res<ByteList> {
     let src = src.err_if(|s| s.is_empty(), EmptyListError)?;
 
-    let mut list = vec![];
+    let mut list = Vec::with_capacity(src.len());
     for s in src.split_whitespace() {
         list.push(byte_from_str(s, mode)?)
     }
@@ -51,7 +51,7 @@ pub fn parse_bytes(src: &str, mode: ConversionMode) -> DefaultRes<ByteList> {
     list.in_ok()
 }
 
-pub fn print_bytes(src: &[Byte], print_mode: PrintMode) -> DefaultRes<String> {
+pub fn print_bytes(src: &[Byte], print_mode: PrintMode) -> Res<String> {
     src.err_if(|s| s.is_empty(), EmptyListError)?
         .into_iter()
         .map(|b| print_byte(*b, print_mode) + " ")
@@ -77,7 +77,7 @@ pub struct NotEnoughTagsError;
 #[error("Empty list")]
 pub struct EmptyListError;
 
-pub fn replace_with_tags<S, T>(src: &[S], tags: HashSet<T>) -> DefaultRes<Vec<T>>
+pub fn replace_with_tags<S, T>(src: &[S], tags: HashSet<T>) -> Res<Vec<T>>
 where
     S: Eq + Hash + Clone,
     T: Clone,
@@ -89,30 +89,28 @@ where
 
     let mut mappings = HashMap::with_capacity(amount);
     let mut tags = tags.into_iter();
-    let mut new_tag = || unsafe { tags.next().unwrap_unchecked() };
 
-    src.iter()
-        .map(|replaceable| mappings.entry(replaceable).or_insert(new_tag()).clone())
-        .collect::<Vec<T>>()
-        .in_ok()
+    let mut new_tag = || unsafe { tags.next().unwrap_unchecked() };
+    let get_or_update = |replaceable| mappings.entry(replaceable).or_insert(new_tag()).clone();
+
+    src.iter().map(get_or_update).collect::<Vec<T>>().in_ok()
 }
 
-pub fn make_freq_map<T: Hash + Eq>(src: &[T]) -> DefaultRes<HashMap<&T, u32>> {
+/// Returns a map that describes how many times a certain value occurs in `src`.
+pub fn make_freq_map<T: Hash + Eq>(src: &[T]) -> Res<HashMap<&T, u32>> {
     let src = src.err_if(|s| s.is_empty(), EmptyListError)?;
 
     let mut occurences = HashMap::with_capacity(src.len());
-    for byte in src {
-        let count = occurences.entry(byte).or_insert(0);
-        *count += 1;
-    }
+    src.iter()
+        .for_each(|byte| *occurences.entry(byte).or_insert(0) += 1);
 
     occurences.in_ok()
 }
 
-pub fn make_freq_list<T: Hash + Eq>(occurrences: HashMap<&T, u32>) -> DefaultRes<Vec<u32>> {
-    let mut occurences = occurrences.err_if(|o| o.is_empty(), EmptyListError)?;
-    occurences
-        .drain()
+pub fn make_freq_list<T: Hash + Eq>(occurrences: HashMap<&T, u32>) -> Res<Vec<u32>> {
+    occurrences
+        .err_if(|o| o.is_empty(), EmptyListError)?
+        .into_iter()
         .map(|(_, v)| v)
         .collect::<Vec<_>>()
         .mutate(|list| list.sort())
@@ -124,11 +122,7 @@ where
     RangeInclusive<T>: Iterator<Item = T>,
     T: Hash + Eq,
 {
-    let mut replace_map = HashSet::new();
-    for ch in start..=end {
-        replace_map.insert(ch);
-    }
-    replace_map
+    HashSet::from_iter(start..=end)
 }
 
 #[cfg(test)]
@@ -136,7 +130,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn replace_tags_test() -> DefaultRes<()> {
+    fn replace_tags_test() -> Res<()> {
         let sample = get_sample("sample.txt")?;
 
         let (print_mode, conv_mode) = (PrintMode::Decimal, ConversionMode::Binary);

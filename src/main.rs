@@ -1,10 +1,10 @@
-use wrong_text_encoding::maptyping::DefaultRes;
+use wrong_text_encoding::maptyping::Res;
 use wrong_text_encoding::{
     get_sample, make_freq_map, make_replace_list, parse_bytes, print_bytes, replace_with_tags,
     ConversionMode, PrintMode,
 };
 
-fn main() -> DefaultRes<()> {
+fn main() -> Res<()> {
     let sample = get_sample("sample.txt")?;
 
     let (print_mode, conv_mode) = (PrintMode::Decimal, ConversionMode::Binary);
